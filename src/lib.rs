@@ -1,14 +1,12 @@
-mod height_map;
-mod las_resampler;
-mod errors;
-mod utils;
-mod utm_bounds;
-mod utm_coord;
-mod mask;
-
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
+pub mod height_map;
+pub mod las_resampler;
+pub mod errors;
+pub mod utils;
+pub mod utm_bounds;
+pub mod mask;
+pub mod kml_utils;
+pub mod utm_point;
+pub mod stl;
 
 #[cfg(test)]
 mod tests {
@@ -16,7 +14,6 @@ mod tests {
 
     #[test]
     fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+        println!("balls")
     }
 }

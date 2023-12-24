@@ -21,6 +21,8 @@ pub enum LasToStlError {
     CsvError(#[from] csv::Error),
     #[error("Error saving image to file:\n\t{0}")]
     ImageError(#[from] image::ImageError),
+    #[error("Error in KML library:\n\t{0}")]
+    KmlError(#[from] kml::Error),
     #[error("attempted to access the first element of a UTM trail, but it is not present.
         This could either be because an empty GPX file was provided,
         or a different error that I have to deal with")]
@@ -28,11 +30,22 @@ pub enum LasToStlError {
     #[error("Bounding coordinates must be in the correct format.
         Ensure that the NW corner is further north and west than the SE corner")]
     BoundingError,
+    #[error("No valid geometries found.
+        ## Causes:
+        the provided vec had no paths,
+        the paths were unable to be read,
+        the files had no geometry,
+        or any combination.
+        more specific per file errors can be found in error log
+        (https://docs.rs/log/0.4.20/log/enum.Level.html#variant.Error)")]
+    NoValidGeometriesError,
     #[error("attempted to get the internal 1d index for a coordinate pair that does not exist. \
         Note that because index starts at 0, \
         x and y must be LESS than their corresponding resolutions (not equal) \
         call variables: x_res: {x_res}, y_res: {y_res}, x: {x}, y: {y}")]
     BadIndexError{ x_res: usize, y_res: usize, x: usize, y: usize },
+    #[error("`set_with_delta` attempted to write to points that were out of bounds {0} times")]
+    SetWithDeltaError{ x_res: usize, y_res: usize, x: usize, y: usize },
 
     #[error("`glob_get_height_map` called with resolution_x = None and resolution_y = None. \
         While one resolution can be left as none to preserve aspect ratio, one must be set. \
@@ -43,19 +56,19 @@ pub enum LasToStlError {
         Talk to Image: (https://docs.rs/image/0.24.7/).")]
     ImageNoneError,
 
-    #[error("Attempted to apply a mask to a heightmap of different resolution / bounds.\
-        heightmap_x_res: {heightmap_x_res}, 
-        heightmap_y_res: {heightmap_y_res}, 
-        mask_x_res: {mask_x_res}, 
-        mask_y_res: {mask_y_res}, 
-        heightmap_bounds: {heightmap_bounds}, 
+    #[error("Attempted to apply a mask to a heightmap or combine two masks of different resolutions/bounds.\
+        other_x_res: {other_x_res},
+        other_y_res: {other_y_res},
+        mask_x_res: {mask_x_res},
+        mask_y_res: {mask_y_res},
+        other_bounds: {other_bounds},
         mask_bounds: {mask_bounds}")]
-    MaskBoundMismatchError{ 
-        heightmap_x_res: usize, 
-        heightmap_y_res: usize, 
-        mask_x_res: usize, 
-        mask_y_res: usize, 
-        heightmap_bounds: UtmBoundingBox, 
+    MaskBoundMismatchError{
+        other_x_res: usize,
+        other_y_res: usize,
+        mask_x_res: usize,
+        mask_y_res: usize,
+        other_bounds: UtmBoundingBox,
         mask_bounds: UtmBoundingBox
     },
 
