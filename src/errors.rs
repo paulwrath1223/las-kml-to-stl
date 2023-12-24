@@ -56,6 +56,10 @@ pub enum LasToStlError {
         Talk to Image: (https://docs.rs/image/0.24.7/).")]
     ImageNoneError,
 
+    #[error("Error interpolating point from LineString. (returned None)
+        (https://docs.rs/geo/0.27.0/geo/geometry/struct.LineString.html#impl-LineInterpolatePoint%3CT%3E-for-LineString%3CT%3E)")]
+    InterpolatePointError,
+
     #[error("Attempted to apply a mask to a heightmap or combine two masks of different resolutions/bounds.\
         other_x_res: {other_x_res},
         other_y_res: {other_y_res},
