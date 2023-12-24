@@ -169,13 +169,13 @@ impl HeightMap {
             }
         }
 
-        let face_mask = mask.to_face_mask();
+        let stl_helper_mask = StlHelperMask::from(mask);
 
-        let x_pos_edges = face_mask.get_cardinal_edge(true, true);
-        let x_neg_edges = face_mask.get_cardinal_edge(true, false);
+        let x_pos_edges = stl_helper_mask.get_cardinal_edge(true, true);
+        let x_neg_edges = stl_helper_mask.get_cardinal_edge(true, false);
 
-        let y_pos_edges = face_mask.get_cardinal_edge(false, true);
-        let y_neg_edges = face_mask.get_cardinal_edge(false, false);
+        let y_pos_edges = stl_helper_mask.get_cardinal_edge(false, true);
+        let y_neg_edges = stl_helper_mask.get_cardinal_edge(false, false);
 
         for edge_coord in x_pos_edges{
             triangle_list.extend(option_vertex_rec_to_triangles_diagonal(
@@ -272,4 +272,92 @@ pub fn option_vertex_rec_to_triangles_diagonal(
 /// will preserve order, so if you want them to be clockwise, pass them clockwise and vice versa
 pub fn vertex_rec_to_triangles(vertex_1: Vertex, vertex_2: Vertex, vertex_3: Vertex, vertex_4: Vertex, normal: Normal) -> (Triangle, Triangle){
     todo!()
+}
+
+pub struct StlHelperMask {
+    data: Vec<bool>,
+    x_res: usize,
+    y_res: usize,
+}
+
+impl From<Mask> for StlHelperMask{
+    fn from(mask: Mask) -> StlHelperMask {
+
+        let new_mask_x_res: usize = mask.x_res-1;
+        let new_mask_y_res: usize = mask.y_res-1;
+
+        let mut new_data_vec: Vec<bool> = vec!(false; (new_mask_x_res) * (new_mask_y_res));
+        for x in 0..new_mask_x_res{
+            for y in 0..new_mask_y_res{
+                let neighbors = mask.get_neighbors(x, y);
+                new_data_vec[y*new_mask_x_res + x] = neighbors[1] && neighbors[2] && neighbors[4] && neighbors[5]
+                // neighbors are in the order of the following relative coordinates:
+                // `[(-1isize, 1isize), (0isize, 1isize), (1isize, 1isize),
+                //   (-1isize, 0isize), (0isize, 0isize), (1isize, 0isize),
+                //   (-1isize, -1isize), (0isize, -1isize), (1isize, -1isize)]`
+            }
+        }
+        StlHelperMask{
+            data: new_data_vec,
+            x_res: new_mask_x_res,
+            y_res: new_mask_y_res,
+        }
+    }
+}
+impl StlHelperMask{
+
+    /// gets a list of coordinates that are true but have a false neighbor in the specified direction.
+    /// Out of bounds points are considered to be false
+    pub fn get_cardinal_edge(&self, use_x_axis: bool, check_positive_edge: bool) -> Vec<(usize, usize)>{
+
+        let mut out_vec: Vec<(usize, usize)> = Vec::new();
+
+        let (x_offset, y_offset) = if use_x_axis
+        {
+            (if check_positive_edge {
+                1isize
+            } else {
+                -1isize
+            }, 0)
+        } else {
+            (0, if check_positive_edge {
+                1isize
+            } else {
+                -1isize
+            })
+        };
+
+        for x in 0..self.x_res{
+            for y in 0..self.y_res{
+                if self.get_by_xy_unchecked(x, y) && !match self.get_by_xy_checked(x as isize + x_offset, y as isize + y_offset){
+                    Ok(s) => {
+                        s
+                    }
+                    Err(_) => {
+                        false
+                    }
+                }{
+                    out_vec.push((x, y))
+                }
+            }
+        }
+        out_vec
+    }
+
+    pub fn get_by_xy_unchecked(&self, x: usize, y: usize) -> bool{
+        self.data[(y*self.x_res) + x]
+    }
+
+    pub fn get_by_xy_checked(&self, x: isize, y: isize) -> Result<bool, LasToStlError>{
+        if x < self.x_res as isize && y < self.y_res as isize && x >= 0 && y >= 0{
+            Ok(self.get_by_xy_unchecked(x as usize, y as usize))
+        } else {
+            Err(LasToStlError::GetByXyCheckedError {
+                x_res: self.x_res,
+                y_res: self.y_res,
+                x,
+                y,
+            })
+        }
+    }
 }

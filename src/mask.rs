@@ -298,44 +298,6 @@ impl Mask{
         self.data.iter_mut().for_each(|mut p| { *p = !*p })
     }
 
-    /// gets a list of coordinates that are true but have a false neighbor in the specified direction.
-    /// Out of bounds points are considered to be false
-    pub fn get_cardinal_edge(&self, use_x_axis: bool, check_positive_edge: bool) -> Vec<(usize, usize)>{
-
-        let mut out_vec: Vec<(usize, usize)> = Vec::new();
-
-        let (x_offset, y_offset) = if use_x_axis
-        {
-            (if check_positive_edge {
-                1isize
-            } else {
-                -1isize
-            }, 0)
-        } else {
-            (0, if check_positive_edge {
-                1isize
-            } else {
-                -1isize
-            })
-        };
-
-        for x in 0..self.x_res{
-            for y in 0..self.y_res{
-                if self.get_by_xy_unchecked(x, y) && !match self.get_by_xy_checked(x as isize + x_offset, y as isize + y_offset){
-                    Ok(s) => {
-                        s
-                    }
-                    Err(_) => {
-                        false
-                    }
-                }{
-                    out_vec.push((x, y))
-                }
-            }
-        }
-        out_vec
-    }
-
     /// neighbors are in the order of the following relative coordinates:
     /// `[(-1isize, 1isize), (0isize, 1isize), (1isize, 1isize),
     ///   (-1isize, 0isize), (0isize, 0isize), (1isize, 0isize),
@@ -357,35 +319,6 @@ impl Mask{
                 }
             }
         }).collect::<Vec<bool>>().try_into().unwrap()
-    }
-
-    /// this technically returns a mask, but I am just too lazy to make a new struct for this return type.
-    ///
-    /// IT IS NOT USABLE AS A MASK FOR ALMOST ALL APPLICATIONS
-    pub fn to_face_mask(&self) -> Mask {
-
-        let new_mask_x_res: usize = self.x_res-1;
-        let new_mask_y_res: usize = self.y_res-1;
-
-        let mut new_data_vec: Vec<bool> = vec!(false; (new_mask_x_res) * (new_mask_y_res));
-        for x in 0..new_mask_x_res{
-            for y in 0..new_mask_y_res{
-                let neighbors = self.get_neighbors(x, y);
-                new_data_vec[y*new_mask_x_res + x] = neighbors[1] && neighbors[2] && neighbors[4] && neighbors[5]
-                // neighbors are in the order of the following relative coordinates:
-                // `[(-1isize, 1isize), (0isize, 1isize), (1isize, 1isize),
-                //   (-1isize, 0isize), (0isize, 0isize), (1isize, 0isize),
-                //   (-1isize, -1isize), (0isize, -1isize), (1isize, -1isize)]`
-            }
-        }
-        Mask{
-            data: new_data_vec,
-            x_res: new_mask_x_res,
-            y_res: new_mask_y_res,
-            x_tick: self.x_tick,
-            y_tick: self.y_tick,
-            bounds: self.bounds,
-        }
     }
 
     /// gets the UTM coordinates of the specified point in pixel space
