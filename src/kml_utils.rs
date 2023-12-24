@@ -1,9 +1,10 @@
 use std::fmt::Debug;
 use std::path::Path;
-use geo::{Geometry, GeometryCollection, LineString, Point, Polygon};
+use geo::{Coord, Geometry, GeometryCollection, LineString, Point, Polygon};
 use kml::{Kml, KmlReader, quick_collection};
 use log::error;
 use crate::errors::LasToStlError;
+use crate::utm_point::UtmCoord;
 
 /// basically a wrapper for some functions from the kml library
 /// given a path to a kml file, it returns a collection of geometry stuff
@@ -26,7 +27,7 @@ pub fn load_kml_files<P: AsRef<Path> + Debug>(paths: Vec<P>)
     let mut out_vec: Vec<Geometry<f64>> = Vec::new();
 
     for path in paths{
-        match load_kml_file(path){
+        match load_kml_file(&path){
             Ok(mut gc) => {
                 out_vec.append(&mut gc.0)
             }
@@ -35,7 +36,7 @@ pub fn load_kml_files<P: AsRef<Path> + Debug>(paths: Vec<P>)
             }
         }
     }
-    
+
     if out_vec.is_empty(){
         Err(LasToStlError::NoValidGeometriesError)
     } else {
@@ -64,7 +65,7 @@ pub fn get_regions(geometry_collection: GeometryCollection<f64>) -> Vec<Polygon>
 }
 
 /// recursively gets all line strings in the collection. Vec may be empty
-pub fn get_paths(geometry_collection: GeometryCollection<f64>) -> Vec<LineString>{
+pub fn get_trails(geometry_collection: GeometryCollection<f64>) -> Vec<LineString>{
 
     let mut out_vec: Vec<LineString> = Vec::new();
 
@@ -74,7 +75,7 @@ pub fn get_paths(geometry_collection: GeometryCollection<f64>) -> Vec<LineString
                 out_vec.push(ls);
             }
             Geometry::GeometryCollection(gc) => {
-                out_vec.extend(get_paths(gc));
+                out_vec.extend(get_trails(gc));
             }
             _ => {}
         }
@@ -101,4 +102,19 @@ pub fn get_waypoints(geometry_collection: GeometryCollection<f64>) -> Vec<Point>
     }
 
     out_vec
+}
+
+pub fn linestring_to_utm_linestring(line_string: &LineString) -> LineString{
+    line_string.into_iter().map(|coord|{
+        Coord::from(&UtmCoord::from(coord))
+    }).collect::<LineString>()
+}
+
+pub fn polygon_to_utm_polygon(polygon: &Polygon) -> Polygon{
+    Polygon::new(
+        linestring_to_utm_linestring(polygon.exterior()),
+        polygon.interiors().iter().map(|line_string|{
+            linestring_to_utm_linestring(line_string)
+        }).collect()
+    )
 }

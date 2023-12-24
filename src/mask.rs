@@ -1,11 +1,10 @@
 use std::ops::{BitAndAssign, BitOrAssign, BitXorAssign};
-use geo::{EuclideanLength, LineInterpolatePoint, LineString, Polygon};
-use log::warn;
-
-use crate::coords::{RasterizedPolygon, UtmCoord, UtmPolygon, UtmTrail};
+use geo::{BoundingRect, Contains, Coord, EuclideanLength, LineInterpolatePoint, LineString, Point, Polygon};
+use log::{error, warn};
+use stl_io::Vertex;
 use crate::errors::LasToStlError;
-use crate::kml_utils::KmlRegion;
-use crate::utils::get_point_deltas_within_radius;
+use crate::kml_utils::{linestring_to_utm_linestring, polygon_to_utm_polygon};
+use crate::utils::{get_point_deltas_within_radius, normal_or_default};
 use crate::utm_bounds::UtmBoundingBox;
 use crate::utm_point::UtmCoord;
 
@@ -19,11 +18,13 @@ pub struct Mask{
     /// so just think about what you're doing if you want to use this.
     ///
     /// just a precalculated value that is used often behind the scenes
+    /// (meters per pixel in x axis)
     pub x_tick: f64,
     /// This should probably not be public, but I don't believe in private fields.
     /// so just think about what you're doing if you want to use this.
     ///
     /// just a precalculated value that is used often behind the scenes
+    /// (meters per pixel in y axis)
     pub y_tick: f64,
     pub bounds: UtmBoundingBox
 }
@@ -51,14 +52,14 @@ impl Mask{
             }
         }
         if num_successes == 0 {
-            Ok(())
-        } else {
             Err(LasToStlError::SetWithDeltaError {
                 x_res: self.x_res,
                 y_res: self.y_res,
                 x,
                 y,
             })
+        } else {
+            Ok(())
         }
     }
 
@@ -97,10 +98,10 @@ impl Mask{
 
     /// will return an error if any of the points (with radius) have no pixels within bounds
     /// plots every point in the line as circle with radius `dot_radius`
-    pub fn add_trail_raw(&mut self, trail: LineString, dot_radius: u16) -> Result<(), LasToStlError>{
+    pub fn add_trail_raw(&mut self, trail: &LineString, dot_radius: u16) -> Result<(), LasToStlError>{
         let deltas: Vec<(i16, i16)> = get_point_deltas_within_radius(dot_radius);
         for point in trail{
-            let utm_point: UtmCoord = UtmCoord::from(&point);
+            let utm_point: UtmCoord = UtmCoord::from(point);
             let (x, y) = utm_point.get_x_y_coords(self.bounds.min_x, self.bounds.min_y, self.x_tick, self.y_tick);
             self.set_with_deltas(x, y, true, &deltas)?;
         }
@@ -109,28 +110,116 @@ impl Mask{
     }
 
     /// resamples and plots a LineString
-    pub fn add_trail(&mut self, trail: LineString, dot_radius: u16) -> Result<(), LasToStlError>{
+    pub fn add_utm_trail_auto_sample(&mut self, utm_trail: &LineString, dot_radius: u16) -> Result<(), LasToStlError>{
 
-        let trail_length_meters = trail.euclidean_length();
+        let trail_length_meters = utm_trail.euclidean_length();
         let avg_meters_per_pixel: f64 = (self.x_tick + self.y_tick) / 2f64;
         let trail_length_pixels = trail_length_meters / avg_meters_per_pixel;
 
         let target_num_points: usize = (dot_radius as f64 / trail_length_pixels) as usize + 1;
 
+        self.add_utm_trail(&utm_trail, dot_radius, target_num_points)
+    }
+
+    /// resamples and plots a LineString
+    pub fn add_lat_lon_trail_auto_sample(&mut self, lat_lon_trail: &LineString, dot_radius: u16) -> Result<(), LasToStlError>{
+
+        let utm_trail = linestring_to_utm_linestring(lat_lon_trail);
+
+        self.add_utm_trail_auto_sample(&utm_trail, dot_radius)
+    }
+
+    pub fn add_lat_lon_trail(&mut self, lat_lon_trail: &LineString, dot_radius: u16, target_num_points: usize) -> Result<(), LasToStlError>{
+        self.add_utm_trail(&linestring_to_utm_linestring(&lat_lon_trail), dot_radius, target_num_points)
+    }
+
+    pub fn add_utm_trail(&mut self, utm_trail: &LineString, dot_radius: u16, target_num_points: usize) -> Result<(), LasToStlError>{
+
         let deltas: Vec<(i16, i16)> = get_point_deltas_within_radius(dot_radius);
         for i in 0..=target_num_points{
 
-            let interpolated_point = trail.line_interpolate_point(
-                i as f64 / target_num_points as f64
-            ).ok_or(LasToStlError::InterpolatePointError)?;
+            let fraction_of_length = i as f64 / target_num_points as f64;
 
-            let utm_point: UtmCoord = UtmCoord::from(&interpolated_point);
-            let (x, y) = utm_point.get_x_y_coords(self.bounds.min_x, self.bounds.min_y, self.x_tick, self.y_tick);
-            self.set_with_deltas(x, y, true, &deltas)?;
+            match utm_trail.line_interpolate_point(i as f64 / target_num_points as f64){
+                Some(utm_interpolated_point) => {
+                    let utm_coord = UtmCoord::new(utm_interpolated_point.x_y());
+                    let (x, y) = utm_coord.get_x_y_coords(self.bounds.min_x, self.bounds.min_y, self.x_tick, self.y_tick);
+                    self.set_with_deltas(x, y, true, &deltas)?;
+                }
+                None => {
+                    error!("Could not interpolate point at {:.2} of trail:\n\t{:?}\nSkipping point", fraction_of_length, utm_trail)
+                }
+            }
         }
 
         Ok(())
     }
+
+    /// only uses the exterior boundary because fuck you that's the data i happen to have,
+    /// if you want to add interior regions you could make a polygon for each interior and add them inverted
+    pub fn add_filled_lat_lon_polygon(&mut self, lat_lon_region: &Polygon, invert: bool) -> Result<(), LasToStlError>{
+
+        let utm_region = polygon_to_utm_polygon(lat_lon_region);
+
+        self.add_filled_utm_polygon(&utm_region, invert)
+    }
+
+    /// only uses the exterior boundary because fuck you that's the data i happen to have,
+    /// if you want to add interior regions you could make a polygon for each interior and add them inverted
+    pub fn add_filled_utm_polygon(&mut self, utm_region: &Polygon, invert: bool) -> Result<(), LasToStlError>{
+        // get bounding rectangle to avoid checking points that arent even close
+        let bounding_rectangle = utm_region.bounding_rect().ok_or(LasToStlError::NoBoundingRectError)?;
+        let min_utm = UtmCoord::from(&bounding_rectangle.min());
+        let max_utm = UtmCoord::from(&bounding_rectangle.max());
+        // TODO: use these bounds for optimization
+
+        for x in 0..self.x_res{
+            for y in 0..self.y_res{
+                self.data[(y*self.x_res) + x] |=
+                    utm_region.contains(&Coord::from(&self.get_x_y_utm_unchecked(x, y))) ^ invert
+            }
+        }
+
+        Ok(())
+    }
+
+    /// expects line_string to be in lat lon, not UTM
+    pub fn add_lat_lon_line_string_as_region(&mut self, line_string: &LineString, invert: bool) -> Result<(), LasToStlError>{
+        if !line_string.is_closed(){
+            return Err(LasToStlError::OpenLineStringError)
+        }
+        let utm_line_string: LineString = linestring_to_utm_linestring(&line_string);
+        let utm_polygon = Polygon::new(utm_line_string, vec!());
+
+        self.add_filled_utm_polygon(&utm_polygon, invert)
+    }
+
+    /// adds a GEO point with the specified radius.
+    /// If adding multiple points please use `add_waypoints` instead to avoid recalculating deltas
+    /// returns an error if none of the pixels in or on the radius are within bounds of the mask.
+    pub fn add_lat_lon_waypoint(&mut self, waypoint: Point, radius: u16) -> Result<(), LasToStlError>{
+        let deltas: Vec<(i16, i16)> = get_point_deltas_within_radius(radius);
+
+        let utm_coord = UtmCoord::from(&waypoint);
+
+        let (x, y) = utm_coord.get_x_y_coords(self.bounds.min_x, self.bounds.min_y, self.x_tick, self.y_tick);
+        self.set_with_deltas(x, y, true, &deltas)
+    }
+
+    /// adds a list of geo points with a specified radius
+    /// returns an error if: for any of the points, none of the pixels in or on the radius are within bounds of the mask.
+    pub fn add_lat_lon_waypoints(&mut self, waypoints: Vec<Point>, dot_radius: u16) -> Result<(), LasToStlError>{
+        let deltas: Vec<(i16, i16)> = get_point_deltas_within_radius(dot_radius);
+        for waypoint in waypoints{
+
+            let utm_coord = UtmCoord::from(&waypoint);
+
+            let (x, y) = utm_coord.get_x_y_coords(self.bounds.min_x, self.bounds.min_y, self.x_tick, self.y_tick);
+            self.set_with_deltas(x, y, true, &deltas)?
+        }
+        Ok(())
+    }
+
 
     /// adds a UTM coordinate with the specified radius.
     /// If adding multiple points please use `add_utm_points` instead to avoid recalculating deltas
@@ -141,7 +230,7 @@ impl Mask{
         self.set_with_deltas(x, y, true, &deltas)
     }
 
-    /// adds a UTM point with specified radius
+    /// adds a vec of UTM points with specified radius
     /// returns an error if: for any of the points, none of the pixels in or on the radius are within bounds of the mask.
     pub fn add_utm_points(&mut self, utm_coords: Vec<UtmCoord>, dot_radius: u16) -> Result<(), LasToStlError>{
         let deltas: Vec<(i16, i16)> = get_point_deltas_within_radius(dot_radius);
@@ -169,8 +258,6 @@ impl Mask{
             })
         }
     }
-
-
 
     /// Bounds and resolution must match
     pub fn checked_bitand_assign(&mut self, other_mask: Mask) -> Result<(), LasToStlError> {
@@ -209,6 +296,139 @@ impl Mask{
     /// inverts the mask... Duh
     pub fn invert(&mut self){
         self.data.iter_mut().for_each(|mut p| { *p = !*p })
+    }
+
+    /// gets a list of coordinates that are true but have a false neighbor in the specified direction.
+    /// Out of bounds points are considered to be false
+    pub fn get_cardinal_edge(&self, use_x_axis: bool, check_positive_edge: bool) -> Vec<(usize, usize)>{
+
+        let mut out_vec: Vec<(usize, usize)> = Vec::new();
+
+        let (x_offset, y_offset) = if use_x_axis
+        {
+            (if check_positive_edge {
+                1isize
+            } else {
+                -1isize
+            }, 0)
+        } else {
+            (0, if check_positive_edge {
+                1isize
+            } else {
+                -1isize
+            })
+        };
+
+        for x in 0..self.x_res{
+            for y in 0..self.y_res{
+                if self.get_by_xy_unchecked(x, y) && !match self.get_by_xy_checked(x as isize + x_offset, y as isize + y_offset){
+                    Ok(s) => {
+                        s
+                    }
+                    Err(_) => {
+                        false
+                    }
+                }{
+                    out_vec.push((x, y))
+                }
+            }
+        }
+        out_vec
+    }
+
+    /// neighbors are in the order of the following relative coordinates:
+    /// `[(-1isize, 1isize), (0isize, 1isize), (1isize, 1isize),
+    ///   (-1isize, 0isize), (0isize, 0isize), (1isize, 0isize),
+    ///   (-1isize, -1isize), (0isize, -1isize), (1isize, -1isize)]`
+    pub fn get_neighbors(&self, x: usize, y: usize) -> [bool; 9]{
+        const MAP: [(isize, isize); 9] = [
+            (-1isize, 1isize), (0isize, 1isize), (1isize, 1isize),
+            (-1isize, 0isize), (0isize, 0isize), (1isize, 0isize),
+            (-1isize, -1isize), (0isize, -1isize), (1isize, -1isize)
+        ];
+
+        MAP.iter().map(|coord| {
+            match self.get_by_xy_checked(x as isize + coord.0, y as isize + coord.1){
+                Ok(s) => {
+                    s
+                }
+                Err(_) => {
+                    false
+                }
+            }
+        }).collect::<Vec<bool>>().try_into().unwrap()
+    }
+
+    /// this technically returns a mask, but I am just too lazy to make a new struct for this return type.
+    ///
+    /// IT IS NOT USABLE AS A MASK FOR ALMOST ALL APPLICATIONS
+    pub fn to_face_mask(&self) -> Mask {
+
+        let new_mask_x_res: usize = self.x_res-1;
+        let new_mask_y_res: usize = self.y_res-1;
+
+        let mut new_data_vec: Vec<bool> = vec!(false; (new_mask_x_res) * (new_mask_y_res));
+        for x in 0..new_mask_x_res{
+            for y in 0..new_mask_y_res{
+                let neighbors = self.get_neighbors(x, y);
+                new_data_vec[y*new_mask_x_res + x] = neighbors[1] && neighbors[2] && neighbors[4] && neighbors[5]
+                // neighbors are in the order of the following relative coordinates:
+                // `[(-1isize, 1isize), (0isize, 1isize), (1isize, 1isize),
+                //   (-1isize, 0isize), (0isize, 0isize), (1isize, 0isize),
+                //   (-1isize, -1isize), (0isize, -1isize), (1isize, -1isize)]`
+            }
+        }
+        Mask{
+            data: new_data_vec,
+            x_res: new_mask_x_res,
+            y_res: new_mask_y_res,
+            x_tick: self.x_tick,
+            y_tick: self.y_tick,
+            bounds: self.bounds,
+        }
+    }
+
+    /// gets the UTM coordinates of the specified point in pixel space
+    /// without checking if it is inside the bounds of the mask.
+    /// The points outside will still be marginally valid,
+    /// but for most applications this indicates an error in the parameters.
+    pub fn get_x_y_utm_unchecked(&self, x: usize, y: usize) -> UtmCoord{
+        UtmCoord::from(((x as f64 * self.x_tick) + self.bounds.min_x, (y as f64 * self.y_tick) + self.bounds.min_y))
+    }
+
+    /// gets the UTM coordinates of the specified point in pixel space
+    pub fn get_x_y_utm(&self, x: usize, y: usize) -> Result<UtmCoord, LasToStlError>{
+        if x < self.x_res && y < self.y_res{
+            Ok(self.get_x_y_utm_unchecked(x, y))
+        } else {
+            Err(LasToStlError::BadIndexError {
+                x_res: self.x_res,
+                y_res: self.y_res,
+                x,
+                y,
+            })
+        }
+    }
+
+    pub fn get_by_xy_unchecked(&self, x: usize, y: usize) -> bool{
+        self.data[(y*self.x_res) + x]
+    }
+
+    pub fn get_mut_ref_by_xy_unchecked(&mut self, x: usize, y: usize) -> &mut bool{
+        &mut self.data[(y*self.x_res) + x]
+    }
+
+    pub fn get_by_xy_checked(&self, x: isize, y: isize) -> Result<bool, LasToStlError>{
+        if x < self.x_res as isize && y < self.y_res as isize && x >= 0 && y >= 0{
+            Ok(self.get_by_xy_unchecked(x as usize, y as usize))
+        } else {
+            Err(LasToStlError::GetByXyCheckedError {
+                x_res: self.x_res,
+                y_res: self.y_res,
+                x,
+                y,
+            })
+        }
     }
 }
 

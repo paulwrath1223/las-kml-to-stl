@@ -44,8 +44,12 @@ pub enum LasToStlError {
         x and y must be LESS than their corresponding resolutions (not equal) \
         call variables: x_res: {x_res}, y_res: {y_res}, x: {x}, y: {y}")]
     BadIndexError{ x_res: usize, y_res: usize, x: usize, y: usize },
-    #[error("`set_with_delta` attempted to write to points that were out of bounds {0} times")]
+    #[error("`set_with_delta` attempted to write to points that were out of bounds:
+        x_res: {x_res}, y_res: {y_res}, x: {x}, y: {y}")]
     SetWithDeltaError{ x_res: usize, y_res: usize, x: usize, y: usize },
+    #[error("`get_by_xy_checked` of mask was called on out of bounds points:
+        x_res: {x_res}, y_res: {y_res}, x: {x}, y: {y}")]
+    GetByXyCheckedError{ x_res: usize, y_res: usize, x: isize, y: isize },
 
     #[error("`glob_get_height_map` called with resolution_x = None and resolution_y = None. \
         While one resolution can be left as none to preserve aspect ratio, one must be set. \
@@ -55,6 +59,15 @@ pub enum LasToStlError {
     #[error("`ImageBuffer::from_vec` returned None. Idk what this means or why or how. \
         Talk to Image: (https://docs.rs/image/0.24.7/).")]
     ImageNoneError,
+
+    #[error("Attempted to parse a linestring as a closed polygon, but it is not closed.")]
+    OpenLineStringError,
+
+    #[error("Polygon does not have a bounding rectangle?? probably empty")]
+    NoBoundingRectError,
+
+    #[error("This shouldn't ever happen, but somehow the face_mask calculated different results than the top and bottom face generation")]
+    StlSideFaceGenerationError,
 
     #[error("Error interpolating point from LineString. (returned None)
         (https://docs.rs/geo/0.27.0/geo/geometry/struct.LineString.html#impl-LineInterpolatePoint%3CT%3E-for-LineString%3CT%3E)")]

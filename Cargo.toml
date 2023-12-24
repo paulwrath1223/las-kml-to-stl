@@ -19,4 +19,5 @@ las = { version = "0.8.1", features = ["laz"] }
 log = "0.4.20"
 kml = "0.8.4"
 utm = "0.1.6"
+simple_logger = "4.3.0"
 

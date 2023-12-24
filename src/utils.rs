@@ -109,3 +109,7 @@ pub fn get_point_deltas_within_radius(radius: u16) -> Vec<(i16, i16)>{
     }
     point_deltas
 }
+
+pub fn utm_point_to_pixel_space(x: f64, y: f64, x_offset: f64, y_offset: f64, x_tick: f64, y_tick: f64) -> (usize, usize){
+    (((x - x_offset) / x_tick) as usize, ((y - y_offset) / y_tick) as usize)
+}

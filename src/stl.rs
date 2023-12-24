@@ -30,7 +30,7 @@ impl HeightMap {
             Vertex::new([x as f32, y as f32, 0f32])
         }).collect();
 
-        let total_triangles = (2 * data_length) + (4 * self.x_res) + (4 * self.y_res);
+        let total_triangles = (4 * data_length) + (4 * self.x_res) + (4 * self.y_res);
 
         let mut triangle_list: Vec<Triangle> = Vec::with_capacity(total_triangles);
 
@@ -98,7 +98,7 @@ impl HeightMap {
             ))
         }
 
-        let mut file = OpenOptions::new().write(true).create(true).open(path)?; // .create_new(true)
+        let mut file = OpenOptions::new().write(true).create_new(true).open(path)?; // .create_new(true)
         stl_io::write_stl(&mut file, triangle_list.iter())?;
 
         println!("saved as stl. took {:?}", now.elapsed());
@@ -167,6 +167,54 @@ impl HeightMap {
                     triangle_list.extend(bottom_vertices.unwrap() /*safe unwrap*/);
                 }
             }
+        }
+
+        let face_mask = mask.to_face_mask();
+
+        let x_pos_edges = face_mask.get_cardinal_edge(true, true);
+        let x_neg_edges = face_mask.get_cardinal_edge(true, false);
+
+        let y_pos_edges = face_mask.get_cardinal_edge(false, true);
+        let y_neg_edges = face_mask.get_cardinal_edge(false, false);
+
+        for edge_coord in x_pos_edges{
+            triangle_list.extend(option_vertex_rec_to_triangles_diagonal(
+                top_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0 + 1, (edge_coord.1)+1)?],
+                top_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0 + 1, edge_coord.1)?],
+                bottom_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0 + 1, edge_coord.1)?],
+                bottom_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0 + 1, (edge_coord.1)+1)?],
+                Normal::from(Vector::new([1f32, 0f32, 0f32]))
+            ).ok_or(LasToStlError::StlSideFaceGenerationError)?)
+        }
+
+        for edge_coord in x_neg_edges{
+            triangle_list.extend(option_vertex_rec_to_triangles_diagonal(
+                top_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0, edge_coord.1)?],
+                top_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0, edge_coord.1 + 1)?],
+                bottom_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0, edge_coord.1 + 1)?],
+                bottom_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0, edge_coord.1)?],
+                Normal::from(Vector::new([-1f32, 0f32, 0f32]))
+            ).ok_or(LasToStlError::StlSideFaceGenerationError)?)
+        }
+
+        for edge_coord in y_pos_edges{
+            triangle_list.extend(option_vertex_rec_to_triangles_diagonal(
+                top_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0 + 1, edge_coord.1 + 1)?],
+                top_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0, edge_coord.1 + 1)?],
+                bottom_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0, edge_coord.1 + 1)?],
+                bottom_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0 + 1, edge_coord.1 + 1)?],
+                Normal::from(Vector::new([0f32, 1f32, 0f32]))
+            ).ok_or(LasToStlError::StlSideFaceGenerationError)?)
+        }
+
+        for edge_coord in y_neg_edges{
+            triangle_list.extend(option_vertex_rec_to_triangles_diagonal(
+                top_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0, edge_coord.1)?],
+                top_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0 + 1, edge_coord.1)?],
+                bottom_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0 + 1, edge_coord.1)?],
+                bottom_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0, edge_coord.1)?],
+                Normal::from(Vector::new([0f32, -1f32, 0f32]))
+            ).ok_or(LasToStlError::StlSideFaceGenerationError)?)
         }
 
         let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
