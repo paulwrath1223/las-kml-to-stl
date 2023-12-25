@@ -203,7 +203,11 @@ impl HeightMap{
     }
 
     /// saves as a black and white png with brightness representing relative height.
-    /// This is useful for doing a sanity check on your data and comparing it to a map
+    /// This is useful for doing a sanity check on your data and comparing it to a map.
+    ///
+    /// Note that the image is vertically flipped.
+    /// This is normal and means that the stl data will be correct when saved as STL.
+    /// If that's a problem, rotate your monitor and then it will be horizontally flipped.
     pub fn save_to_image<P: AsRef<Path>>(&self, path: P) -> Result<(), LasToStlError>{
         let image: ImageBuffer<Luma<u8>, Vec<u8>> = ImageBuffer::from_vec(
             self.x_res as u32,

@@ -1,5 +1,6 @@
 use std::fs::OpenOptions;
 use std::time::SystemTime;
+use log::{debug, info};
 use stl_io::{Normal, Triangle, Vector, Vertex};
 use crate::errors::LasToStlError;
 use crate::height_map::HeightMap;
@@ -108,7 +109,7 @@ impl HeightMap {
 
     pub fn save_as_stl_masked(&self, path: &str, invert: bool, mask: Mask, z_scaling: f64, base_thickness: f32) -> Result<(), LasToStlError>{
 
-        println!("save as stl masked");
+        debug!("save as stl masked");
 
         let now = SystemTime::now();
 
@@ -137,6 +138,8 @@ impl HeightMap {
             }
 
         }).collect::<Vec<Option<Vertex>>>();
+
+        info!("assembled vertex lists");
 
         let mut triangle_list: Vec<Triangle> = Vec::new();
 
@@ -169,13 +172,18 @@ impl HeightMap {
             }
         }
 
+        info!("assembled top and bottom faces");
+
         let stl_helper_mask = StlHelperMask::from(mask);
 
         let x_pos_edges = stl_helper_mask.get_cardinal_edge(true, true);
+        info!("calculated east edge faces");
         let x_neg_edges = stl_helper_mask.get_cardinal_edge(true, false);
-
+        info!("calculated west edge faces");
         let y_pos_edges = stl_helper_mask.get_cardinal_edge(false, true);
+        info!("calculated north edge faces");
         let y_neg_edges = stl_helper_mask.get_cardinal_edge(false, false);
+        info!("calculated south edge faces");
 
         for edge_coord in x_pos_edges{
             triangle_list.extend(option_vertex_rec_to_triangles_diagonal(
@@ -187,6 +195,8 @@ impl HeightMap {
             ).ok_or(LasToStlError::StlSideFaceGenerationError)?)
         }
 
+        info!("assembled east edge faces");
+
         for edge_coord in x_neg_edges{
             triangle_list.extend(option_vertex_rec_to_triangles_diagonal(
                 top_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0, edge_coord.1)?],
@@ -196,6 +206,8 @@ impl HeightMap {
                 Normal::from(Vector::new([-1f32, 0f32, 0f32]))
             ).ok_or(LasToStlError::StlSideFaceGenerationError)?)
         }
+
+        info!("assembled west edge faces");
 
         for edge_coord in y_pos_edges{
             triangle_list.extend(option_vertex_rec_to_triangles_diagonal(
@@ -207,6 +219,8 @@ impl HeightMap {
             ).ok_or(LasToStlError::StlSideFaceGenerationError)?)
         }
 
+        info!("assembled north edge faces");
+
         for edge_coord in y_neg_edges{
             triangle_list.extend(option_vertex_rec_to_triangles_diagonal(
                 top_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0, edge_coord.1)?],
@@ -217,10 +231,12 @@ impl HeightMap {
             ).ok_or(LasToStlError::StlSideFaceGenerationError)?)
         }
 
+        info!("calculated south edge faces");
+
         let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
         stl_io::write_stl(&mut file, triangle_list.iter())?;
 
-        println!("save as stl masked top and bottom done in {:?}", now.elapsed());
+        debug!("save as stl masked top and bottom done in {:?}", now.elapsed());
 
         Ok(())
     }
@@ -267,11 +283,6 @@ pub fn option_vertex_rec_to_triangles_diagonal(
             vertex_4?
         ]
     }])
-}
-
-/// will preserve order, so if you want them to be clockwise, pass them clockwise and vice versa
-pub fn vertex_rec_to_triangles(vertex_1: Vertex, vertex_2: Vertex, vertex_3: Vertex, vertex_4: Vertex, normal: Normal) -> (Triangle, Triangle){
-    todo!()
 }
 
 pub struct StlHelperMask {

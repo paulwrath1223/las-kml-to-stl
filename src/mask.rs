@@ -4,7 +4,7 @@ use log::{error, warn};
 use stl_io::Vertex;
 use crate::errors::LasToStlError;
 use crate::kml_utils::{linestring_to_utm_linestring, polygon_to_utm_polygon};
-use crate::utils::{get_point_deltas_within_radius, normal_or_default};
+use crate::utils::{get_point_deltas_within_radius, normal_or_default, utm_point_to_pixel_space};
 use crate::utm_bounds::UtmBoundingBox;
 use crate::utm_point::UtmCoord;
 
@@ -171,10 +171,21 @@ impl Mask{
         let bounding_rectangle = utm_region.bounding_rect().ok_or(LasToStlError::NoBoundingRectError)?;
         let min_utm = UtmCoord::from(&bounding_rectangle.min());
         let max_utm = UtmCoord::from(&bounding_rectangle.max());
-        // TODO: use these bounds for optimization
 
-        for x in 0..self.x_res{
-            for y in 0..self.y_res{
+        let (min_x, min_y) = utm_point_to_pixel_space(min_utm.easting, min_utm.northing, self.bounds.min_x, self.bounds.min_y, self.x_tick, self.y_tick);
+        let (max_x, max_y) = utm_point_to_pixel_space(max_utm.easting, max_utm.northing, self.bounds.min_x, self.bounds.min_y, self.x_tick, self.y_tick);
+
+        if max_x > self.x_res || max_y > self.y_res{
+            return Err(LasToStlError::PolygonOutOfBoundsError {
+                x_res: self.x_res,
+                y_res: self.y_res,
+                x: max_x,
+                y: max_y,
+            })
+        }
+
+        for x in min_x..=max_x{
+            for y in min_y..=max_y{
                 self.data[(y*self.x_res) + x] |=
                     utm_region.contains(&Coord::from(&self.get_x_y_utm_unchecked(x, y))) ^ invert
             }

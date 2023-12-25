@@ -47,6 +47,9 @@ pub enum LasToStlError {
     #[error("`set_with_delta` attempted to write to points that were out of bounds:
         x_res: {x_res}, y_res: {y_res}, x: {x}, y: {y}")]
     SetWithDeltaError{ x_res: usize, y_res: usize, x: usize, y: usize },
+    #[error("attempted to add a polygon to a mask that was out of bounds:
+        x_res: {x_res}, y_res: {y_res}, x: {x}, y: {y}")]
+    PolygonOutOfBoundsError{ x_res: usize, y_res: usize, x: usize, y: usize },
     #[error("`get_by_xy_checked` of mask was called on out of bounds points:
         x_res: {x_res}, y_res: {y_res}, x: {x}, y: {y}")]
     GetByXyCheckedError{ x_res: usize, y_res: usize, x: isize, y: isize },
