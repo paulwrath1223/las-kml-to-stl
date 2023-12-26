@@ -1,6 +1,6 @@
 use std::ops::{BitAndAssign, BitOrAssign, BitXorAssign};
 use geo::{BoundingRect, Contains, Coord, EuclideanLength, LineInterpolatePoint, LineString, Point, Polygon};
-use log::{error, warn};
+use log::{error, info, trace, warn};
 use stl_io::Vertex;
 use crate::errors::LasToStlError;
 use crate::kml_utils::{linestring_to_utm_linestring, polygon_to_utm_polygon};
@@ -147,7 +147,7 @@ impl Mask{
                     self.set_with_deltas(x, y, true, &deltas)?;
                 }
                 None => {
-                    error!("Could not interpolate point at {:.2} of trail:\n\t{:?}\nSkipping point", fraction_of_length, utm_trail)
+                    error!("Could not interpolate point at {:.2} of trail, Skipping point", fraction_of_length)
                 }
             }
         }
@@ -157,6 +157,8 @@ impl Mask{
 
     /// only uses the exterior boundary because fuck you that's the data i happen to have,
     /// if you want to add interior regions you could make a polygon for each interior and add them inverted
+    ///
+    /// EXTREMELY SLOW VALVE PLEASE FIX
     pub fn add_filled_lat_lon_polygon(&mut self, lat_lon_region: &Polygon, invert: bool) -> Result<(), LasToStlError>{
 
         let utm_region = polygon_to_utm_polygon(lat_lon_region);
@@ -166,14 +168,27 @@ impl Mask{
 
     /// only uses the exterior boundary because fuck you that's the data i happen to have,
     /// if you want to add interior regions you could make a polygon for each interior and add them inverted
+    ///
+    /// EXTREMELY SLOW VALVE PLEASE FIX
     pub fn add_filled_utm_polygon(&mut self, utm_region: &Polygon, invert: bool) -> Result<(), LasToStlError>{
         // get bounding rectangle to avoid checking points that arent even close
-        let bounding_rectangle = utm_region.bounding_rect().ok_or(LasToStlError::NoBoundingRectError)?;
-        let min_utm = UtmCoord::from(&bounding_rectangle.min());
-        let max_utm = UtmCoord::from(&bounding_rectangle.max());
 
-        let (min_x, min_y) = utm_point_to_pixel_space(min_utm.easting, min_utm.northing, self.bounds.min_x, self.bounds.min_y, self.x_tick, self.y_tick);
-        let (max_x, max_y) = utm_point_to_pixel_space(max_utm.easting, max_utm.northing, self.bounds.min_x, self.bounds.min_y, self.x_tick, self.y_tick);
+        let utm_bounding_rectangle = utm_region.bounding_rect().ok_or(LasToStlError::NoBoundingRectError)?;
+        let min_utm = UtmCoord::new(utm_bounding_rectangle.min().x_y());
+        let max_utm = UtmCoord::new(utm_bounding_rectangle.max().x_y());
+
+        trace!("min_utm: {:?}, max_utm: {:?}", min_utm, max_utm);
+        trace!("self.bounds: {}", self.bounds);
+
+        let first_coord = utm_region.exterior().coords().next().unwrap();
+
+        trace!("first 'utm' coord in exterior: {:?}", first_coord);
+
+        let (min_x, min_y) = min_utm.get_x_y_coords(self.bounds.min_x, self.bounds.min_y, self.x_tick, self.y_tick);
+        let (max_x, max_y) = max_utm.get_x_y_coords(self.bounds.min_x, self.bounds.min_y, self.x_tick, self.y_tick);
+
+        trace!("min_x: {:?}, min_y: {:?}", min_x, min_y);
+        trace!("max_x: {:?}, max_y: {:?}", max_x, max_y);
 
         if max_x > self.x_res || max_y > self.y_res{
             return Err(LasToStlError::PolygonOutOfBoundsError {
@@ -188,6 +203,9 @@ impl Mask{
             for y in min_y..=max_y{
                 self.data[(y*self.x_res) + x] |=
                     utm_region.contains(&Coord::from(&self.get_x_y_utm_unchecked(x, y))) ^ invert
+            }
+            if x % 512 == 0{
+                info!("region_rasterizing: {:.2}%", 100f64 * x as f64 / self.x_res as f64)
             }
         }
 
@@ -254,9 +272,11 @@ impl Mask{
 
 
     /// Bounds and resolution must match
-    pub fn checked_bitor_assign(&mut self, other_mask: Mask) -> Result<(), LasToStlError> {
+    pub fn checked_bitor_assign(&mut self, other_mask: &Mask) -> Result<(), LasToStlError> {
         if self.x_res == other_mask.x_res && self.y_res == other_mask.y_res && self.bounds == other_mask.bounds{
-            self.bitor_assign(other_mask);
+            for (own_state, other_state) in self.data.iter_mut().zip(other_mask.data.iter()){
+                *own_state |= *other_state;
+            }
             Ok(())
         } else {
             Err(LasToStlError::MaskBoundMismatchError {
@@ -271,9 +291,11 @@ impl Mask{
     }
 
     /// Bounds and resolution must match
-    pub fn checked_bitand_assign(&mut self, other_mask: Mask) -> Result<(), LasToStlError> {
+    pub fn checked_bitand_assign(&mut self, other_mask: &Mask) -> Result<(), LasToStlError> {
         if self.x_res == other_mask.x_res && self.y_res == other_mask.y_res && self.bounds == other_mask.bounds{
-            self.bitand_assign(other_mask);
+            for (own_state, other_state) in self.data.iter_mut().zip(other_mask.data.iter()){
+                *own_state &= *other_state;
+            }
             Ok(())
         } else {
             Err(LasToStlError::MaskBoundMismatchError {
@@ -288,9 +310,11 @@ impl Mask{
     }
 
     /// Bounds and resolution must match
-    pub fn checked_bitxor_assign(&mut self, other_mask: Mask) -> Result<(), LasToStlError> {
+    pub fn checked_bitxor_assign(&mut self, other_mask: &Mask) -> Result<(), LasToStlError> {
         if self.x_res == other_mask.x_res && self.y_res == other_mask.y_res && self.bounds == other_mask.bounds{
-            self.bitxor_assign(other_mask);
+            for (own_state, other_state) in self.data.iter_mut().zip(other_mask.data.iter()){
+                *own_state ^= *other_state;
+            }
             Ok(())
         } else {
             Err(LasToStlError::MaskBoundMismatchError {
@@ -373,6 +397,18 @@ impl Mask{
                 y,
             })
         }
+    }
+
+    pub fn get_percent_coverage(&self) -> f64{
+        let mut num_true: u64 = 0;
+        for state in &self.data{
+            if *state{
+                num_true += 1;
+            }
+        }
+
+        100f64 * num_true as f64 / (self.x_res * self.y_res) as f64
+
     }
 }
 

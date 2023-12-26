@@ -133,9 +133,9 @@ impl Default for UtmBoundingBox {
 impl Display for UtmBoundingBox{
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(formatter,
-               "x: ({}, {})\
-                x: ({}, {})\
-                x: ({}, {})",
+               "[x: ({}, {}), \
+                y: ({}, {}), \
+                z: ({}, {})]",
                self.min_x, self.max_x, self.min_y, self.max_y, self.min_z, self.max_z)
     }
 }

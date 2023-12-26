@@ -251,6 +251,15 @@ impl HeightMap{
             })
         }
     }
+
+    /// to change the units to proper UTM (which is assumed for all heightmaps),
+    /// convert this object's bounds to UTM and pass them here. Z axis does not matter.
+    /// [espg](https://epsg.io/) is a great tool for converting various coordinate systems
+    ///
+    /// despite the name, there is no 'checked' variation (for now)
+    pub fn convert_projection_unchecked(&mut self, new_bounds: UtmBoundingBox){
+        self.bounds = new_bounds;
+    }
 }
 
 impl From<HeightMapIntermediate> for HeightMap{

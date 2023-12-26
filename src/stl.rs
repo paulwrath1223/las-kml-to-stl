@@ -1,6 +1,6 @@
 use std::fs::OpenOptions;
 use std::time::SystemTime;
-use log::{debug, info};
+use log::{debug, error, info};
 use stl_io::{Normal, Triangle, Vector, Vertex};
 use crate::errors::LasToStlError;
 use crate::height_map::HeightMap;
@@ -19,6 +19,8 @@ impl HeightMap {
 
         let data_length = self.x_res * self.y_res;
 
+        info!("assembling vertex lists");
+
         let top_vertex_list: Vec<Vertex> = self.data.iter().enumerate().map(|(index, height)| {
             let x = index % self.x_res;
             let y = index / self.x_res;
@@ -30,6 +32,8 @@ impl HeightMap {
             let y = index / self.x_res;
             Vertex::new([x as f32, y as f32, 0f32])
         }).collect();
+
+        info!("assembled vertex lists");
 
         let total_triangles = (4 * data_length) + (4 * self.x_res) + (4 * self.y_res);
 
@@ -55,6 +59,8 @@ impl HeightMap {
             }
         }
 
+        info!("assembled top and bottom faces");
+
         // north?
         for x in 0..self.x_res-1{
             triangle_list.extend(vertex_rec_to_triangles_diagonal(
@@ -65,6 +71,8 @@ impl HeightMap {
                 Normal::from(Vector::new([0f32, 1f32, 0f32]))
             ))
         }
+
+        info!("assembled north faces");
 
         // south?
         for x in 0..self.x_res-1{
@@ -77,6 +85,8 @@ impl HeightMap {
             ))
         }
 
+        info!("assembled south faces");
+
         // east?
         for y in 0..self.y_res-1{
             triangle_list.extend(vertex_rec_to_triangles_diagonal(
@@ -87,6 +97,8 @@ impl HeightMap {
                 Normal::from(Vector::new([1f32, 0f32, 0f32]))
             ))
         }
+
+        info!("assembled east faces");
 
         // west?
         for y in 0..self.y_res-1{
@@ -99,15 +111,17 @@ impl HeightMap {
             ))
         }
 
+        info!("assembled west faces");
+
         let mut file = OpenOptions::new().write(true).create_new(true).open(path)?; // .create_new(true)
         stl_io::write_stl(&mut file, triangle_list.iter())?;
 
-        println!("saved as stl. took {:?}", now.elapsed());
+        debug!("saved as stl. took {:?}", now.elapsed());
 
         Ok(())
     }
 
-    pub fn save_as_stl_masked(&self, path: &str, invert: bool, mask: Mask, z_scaling: f64, base_thickness: f32) -> Result<(), LasToStlError>{
+    pub fn save_as_stl_masked(&self, path: &str, mask: Mask, z_scaling: f64, base_thickness: f32) -> Result<(), LasToStlError>{
 
         debug!("save as stl masked");
 
@@ -116,21 +130,25 @@ impl HeightMap {
         let z_scale_factor = z_scaling * self.x_res as f64 / self.bounds.x_range();
 
         let top_vertex_list: Vec<Option<Vertex>> = self.data.iter().enumerate().map(|(index, height)| {
-            if mask.data[index] ^ invert {
-                None
-            } else {
-                let x = index % self.x_res;
-                let y = index / self.x_res;
-                Some(Vertex::new([x as f32, y as f32, (normal_or_default(height - self.bounds.min_z, 0f64) * z_scale_factor) as f32 + base_thickness]))
+            match mask.data[index]{
+                false => {
+                    None
+                }
+                true => {
+                    let x = index % self.x_res;
+                    let y = index / self.x_res;
+                    Some(Vertex::new([x as f32, y as f32, (normal_or_default(height - self.bounds.min_z, 0f64) * z_scale_factor) as f32 + base_thickness]))
+                }
             }
+
         }).collect::<Vec<Option<Vertex>>>();
 
         let bottom_vertex_list: Vec<Option<Vertex>> = self.data.iter().enumerate().map(|(index, _height)| {
-            match mask.data[index] ^ invert{
-                true => {
+            match mask.data[index]{
+                false => {
                     None
                 }
-                false => {
+                true => {
                     let x = index % self.x_res;
                     let y = index / self.x_res;
                     Some(Vertex::new([x as f32, y as f32, 0f32]))
@@ -186,52 +204,86 @@ impl HeightMap {
         info!("calculated south edge faces");
 
         for edge_coord in x_pos_edges{
-            triangle_list.extend(option_vertex_rec_to_triangles_diagonal(
+
+            match option_vertex_rec_to_triangles_diagonal(
                 top_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0 + 1, (edge_coord.1)+1)?],
                 top_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0 + 1, edge_coord.1)?],
                 bottom_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0 + 1, edge_coord.1)?],
                 bottom_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0 + 1, (edge_coord.1)+1)?],
                 Normal::from(Vector::new([1f32, 0f32, 0f32]))
-            ).ok_or(LasToStlError::StlSideFaceGenerationError)?)
+            ){
+                Some(faces) => {
+                    triangle_list.extend(faces);
+                }
+                None => {
+                    error!("Attempted to build a face from a vertex that doesn't exist. Skipping");
+                    debug!("edge coord: {:?}", edge_coord);
+                }
+            }
         }
 
         info!("assembled east edge faces");
 
         for edge_coord in x_neg_edges{
-            triangle_list.extend(option_vertex_rec_to_triangles_diagonal(
+            match option_vertex_rec_to_triangles_diagonal(
                 top_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0, edge_coord.1)?],
                 top_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0, edge_coord.1 + 1)?],
                 bottom_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0, edge_coord.1 + 1)?],
                 bottom_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0, edge_coord.1)?],
                 Normal::from(Vector::new([-1f32, 0f32, 0f32]))
-            ).ok_or(LasToStlError::StlSideFaceGenerationError)?)
+            ){
+                Some(faces) => {
+                    triangle_list.extend(faces);
+                }
+                None => {
+                    error!("Attempted to build a face from a vertex that doesn't exist. Skipping");
+                    debug!("edge coord: {:?}", edge_coord);
+                }
+            }
         }
 
         info!("assembled west edge faces");
 
         for edge_coord in y_pos_edges{
-            triangle_list.extend(option_vertex_rec_to_triangles_diagonal(
+            match option_vertex_rec_to_triangles_diagonal(
                 top_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0 + 1, edge_coord.1 + 1)?],
                 top_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0, edge_coord.1 + 1)?],
                 bottom_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0, edge_coord.1 + 1)?],
                 bottom_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0 + 1, edge_coord.1 + 1)?],
                 Normal::from(Vector::new([0f32, 1f32, 0f32]))
-            ).ok_or(LasToStlError::StlSideFaceGenerationError)?)
+            ){
+                Some(faces) => {
+                    triangle_list.extend(faces);
+                }
+                None => {
+                    error!("Attempted to build a face from a vertex that doesn't exist. Skipping");
+                    debug!("edge coord: {:?}", edge_coord);
+                }
+            }
         }
 
         info!("assembled north edge faces");
 
         for edge_coord in y_neg_edges{
-            triangle_list.extend(option_vertex_rec_to_triangles_diagonal(
+
+            match option_vertex_rec_to_triangles_diagonal(
                 top_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0, edge_coord.1)?],
                 top_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0 + 1, edge_coord.1)?],
                 bottom_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0 + 1, edge_coord.1)?],
                 bottom_vertex_list[x_y_to_index(self.x_res, self.y_res, edge_coord.0, edge_coord.1)?],
                 Normal::from(Vector::new([0f32, -1f32, 0f32]))
-            ).ok_or(LasToStlError::StlSideFaceGenerationError)?)
+            ){
+                Some(faces) => {
+                    triangle_list.extend(faces);
+                }
+                None => {
+                    error!("Attempted to build a face from a vertex that doesn't exist. Skipping");
+                    debug!("edge coord: {:?}", edge_coord);
+                }
+            }
         }
 
-        info!("calculated south edge faces");
+        info!("assembled south edge faces");
 
         let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
         stl_io::write_stl(&mut file, triangle_list.iter())?;

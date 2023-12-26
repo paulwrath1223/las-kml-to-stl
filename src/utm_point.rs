@@ -4,6 +4,7 @@ use utm::{to_utm_wgs84_no_zone, wsg84_utm_to_lat_lon};
 
 
 
+#[derive(Debug)]
 pub struct UtmCoord {
     pub northing: f64,
     pub easting: f64,
@@ -14,7 +15,7 @@ impl UtmCoord {
     pub fn get_x_y_coords(&self, x_offset: f64, y_offset: f64, x_tick: f64, y_tick: f64) -> (usize, usize){
         (((self.easting - x_offset) / x_tick) as usize, ((self.northing - y_offset) / y_tick) as usize)
     }
-    
+
     pub fn new(coords: (f64, f64)) -> Self{
         UtmCoord{
             northing: coords.1,
@@ -37,7 +38,7 @@ impl From<&Point<f64>> for UtmCoord{
 }
 
 impl From<&Coord<f64>> for UtmCoord{
-    
+
     /// converts from a LAT LON coord to a utm_coord
     fn from(gps_point: &Coord<f64>) -> Self {
         let (northing, easting, _) = to_utm_wgs84_no_zone(gps_point.y, gps_point.x);
