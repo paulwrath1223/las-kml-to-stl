@@ -36,6 +36,10 @@ pub fn save_data(){
 }
 
 pub fn load_and_manipulate(){
+
+    //UTM zone 10. You can find your UTM Zone online, and it doesn't have to be perfect, just keep it constant
+    let utm_zone: u8 = 10;
+
     // load the height map that was previously saved
     let mut hm = HeightMap::load("example data.json").unwrap();
 
@@ -49,8 +53,8 @@ pub fn load_and_manipulate(){
     // get a reference to the first polygon in the file
     let property_line_polygon = &all_polygons_in_file[0];
 
-    // create a mask with the same resolution and bounds as our heightmap
-    let mut property_mask: Mask = Mask::new_with_dims(hm.x_res, hm.y_res, hm.bounds);
+    // create a mask with the same resolution and bounds as our heightmap,
+    let mut property_mask: Mask = Mask::new_with_dims(hm.x_res, hm.y_res, hm.bounds, utm_zone);
 
     // add the filled in polygon to the mask.
     // The KML file must be in decimal GPS coordinates. I have never seen a KML in a different format,
@@ -65,7 +69,7 @@ pub fn load_and_manipulate(){
     let all_trails_in_file: Vec<LineString> = get_trails(kml_file_with_trails);
 
     // create another mask for the trails
-    let mut trail_mask: Mask = Mask::new_with_dims(hm.x_res, hm.y_res, hm.bounds);
+    let mut trail_mask: Mask = Mask::new_with_dims(hm.x_res, hm.y_res, hm.bounds, utm_zone);
 
     let trail_width_in_pixels: u16 = 16;
 

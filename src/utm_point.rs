@@ -1,5 +1,5 @@
 use geo::{Coord, Point};
-use utm::to_utm_wgs84_no_zone;
+use utm::to_utm_wgs84;
 
 
 
@@ -22,30 +22,27 @@ impl UtmCoord {
             easting: coords.0,
         }
     }
-}
 
-impl From<&UtmCoord> for (f64, f64) {
-    fn from(utm_coord: &UtmCoord) -> Self {
-        (utm_coord.easting, utm_coord.northing)
-    }
-}
-
-impl From<&Point<f64>> for UtmCoord{
-    /// converts from a LAT LON point to a utm_coord
-    fn from(gps_point: &Point<f64>) -> Self {
-        UtmCoord::from(&gps_point.0)
-    }
-}
-
-impl From<&Coord<f64>> for UtmCoord{
-
-    /// converts from a LAT LON coord to a utm_coord
-    fn from(gps_point: &Coord<f64>) -> Self {
-        let (northing, easting, _) = to_utm_wgs84_no_zone(gps_point.y, gps_point.x);
+    /// see [UTM on wikipedia](https://en.wikipedia.org/wiki/Universal_Transverse_Mercator_coordinate_system) to find what a UTM zone is.
+    /// This is required and must be correct (or at least constant)
+    pub fn from_gps_coord_zoned(gps_point: &Coord<f64>, utm_zone: u8) -> Self {
+        let (northing, easting, _) = to_utm_wgs84(gps_point.y, gps_point.x, utm_zone);
         UtmCoord {
             northing,
             easting,
         }
+    }
+
+    /// converts from a LAT LON point to a utm_coord
+    pub fn from_lat_lon_point_zoned(gps_point: &Point<f64>, utm_zone: u8) -> Self {
+        UtmCoord::from_gps_coord_zoned(&gps_point.0, utm_zone)
+    }
+}
+
+
+impl From<&UtmCoord> for (f64, f64) {
+    fn from(utm_coord: &UtmCoord) -> Self {
+        (utm_coord.easting, utm_coord.northing)
     }
 }
 

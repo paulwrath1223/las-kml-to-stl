@@ -25,7 +25,11 @@ pub struct Mask{
     /// just a precalculated value that is used often behind the scenes
     /// (meters per pixel in y axis)
     pub y_tick: f64,
-    pub bounds: UtmBoundingBox
+    pub bounds: UtmBoundingBox,
+
+    /// see [UTM on wikipedia](https://en.wikipedia.org/wiki/Universal_Transverse_Mercator_coordinate_system) to find what a UTM zone is.
+    /// This is required and must be correct (or at least constant)
+    pub utm_zone: u8
 }
 
 impl Mask{
@@ -80,7 +84,10 @@ impl Mask{
     }
 
     /// Creates a new mask from some basic info. Recommended to get this info from the heightmap it is intended to be applied to
-    pub fn new_with_dims(x_res: usize, y_res: usize, bounds: UtmBoundingBox) -> Mask{
+    ///
+    /// see [UTM on wikipedia](https://en.wikipedia.org/wiki/Universal_Transverse_Mercator_coordinate_system) to find what a UTM zone is.
+    /// This is required and must be correct (or at least constant)
+    pub fn new_with_dims(x_res: usize, y_res: usize, bounds: UtmBoundingBox, utm_zone: u8) -> Mask{
 
         let x_tick: f64 = bounds.x_range() / (x_res - 1) as f64;
         let y_tick: f64 = bounds.y_range() / (y_res - 1) as f64;
@@ -92,6 +99,7 @@ impl Mask{
             x_tick,
             y_tick,
             bounds,
+            utm_zone,
         }
     }
 
@@ -100,7 +108,7 @@ impl Mask{
     pub fn add_trail_raw(&mut self, trail: &LineString, dot_radius: u16) -> Result<(), LasToStlError>{
         let deltas: Vec<(i16, i16)> = get_point_deltas_within_radius(dot_radius);
         for point in trail{
-            let utm_point: UtmCoord = UtmCoord::from(point);
+            let utm_point: UtmCoord = UtmCoord::from_gps_coord_zoned(point, self.utm_zone);
             let (x, y) = utm_point.get_x_y_coords(self.bounds.min_x, self.bounds.min_y, self.x_tick, self.y_tick);
             self.set_with_deltas(x, y, true, &deltas)?;
         }
@@ -220,7 +228,7 @@ impl Mask{
     pub fn add_lat_lon_waypoint(&mut self, waypoint: Point, radius: u16) -> Result<(), LasToStlError>{
         let deltas: Vec<(i16, i16)> = get_point_deltas_within_radius(radius);
 
-        let utm_coord = UtmCoord::from(&waypoint);
+        let utm_coord = UtmCoord::from_lat_lon_point_zoned(&waypoint, self.utm_zone);
 
         let (x, y) = utm_coord.get_x_y_coords(self.bounds.min_x, self.bounds.min_y, self.x_tick, self.y_tick);
         self.set_with_deltas(x, y, true, &deltas)
@@ -232,7 +240,7 @@ impl Mask{
         let deltas: Vec<(i16, i16)> = get_point_deltas_within_radius(dot_radius);
         for waypoint in waypoints{
 
-            let utm_coord = UtmCoord::from(&waypoint);
+            let utm_coord = UtmCoord::from_lat_lon_point_zoned(&waypoint, self.utm_zone);
 
             let (x, y) = utm_coord.get_x_y_coords(self.bounds.min_x, self.bounds.min_y, self.x_tick, self.y_tick);
             self.set_with_deltas(x, y, true, &deltas)?
