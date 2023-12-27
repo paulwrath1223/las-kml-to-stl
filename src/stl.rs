@@ -375,31 +375,26 @@ impl StlHelperMask{
 
         let mut out_vec: Vec<(usize, usize)> = Vec::new();
 
-        let (x_offset, y_offset) = if use_x_axis
-        {
-            (if check_positive_edge {
-                1isize
-            } else {
-                -1isize
-            }, 0)
-        } else {
-            (0, if check_positive_edge {
-                1isize
-            } else {
-                -1isize
-            })
-        };
+        let offset_value: isize = if check_positive_edge { 1isize } else { -1isize };
+
+        let (x_offset, y_offset) = if use_x_axis { (offset_value, 0) } else { (0, offset_value) };
 
         for x in 0..self.x_res{
             for y in 0..self.y_res{
-                if self.get_by_xy_unchecked(x, y) && !match self.get_by_xy_checked(x as isize + x_offset, y as isize + y_offset){
-                    Ok(s) => {
-                        s
-                    }
-                    Err(_) => {
+                let offset_x: isize = x as isize + x_offset;
+                let offset_y: isize = y as isize + y_offset;
+
+                let offset_coords_in_bounds: bool = offset_x < self.x_res as isize && offset_y < self.y_res as isize && offset_x >= 0 && offset_y >= 0;
+
+                if self.get_by_xy_unchecked(x, y) &&
+                    !if offset_coords_in_bounds{
+                        self.get_by_xy_unchecked(offset_x as usize, offset_y as usize)
+                    } else {
                         false
                     }
-                }{
+                // Very confusing `if` statement. Its saying if (x,y) of mask is true and (offset_x,offset_y) is false (or out of bounds), do the following.
+                // But I can't check (offset_x,offset_y) if its out of bounds, hence the second if statement
+                {
                     out_vec.push((x, y))
                 }
             }
@@ -409,18 +404,5 @@ impl StlHelperMask{
 
     pub fn get_by_xy_unchecked(&self, x: usize, y: usize) -> bool{
         self.data[(y*self.x_res) + x]
-    }
-
-    pub fn get_by_xy_checked(&self, x: isize, y: isize) -> Result<bool, LasToStlError>{
-        if x < self.x_res as isize && y < self.y_res as isize && x >= 0 && y >= 0{
-            Ok(self.get_by_xy_unchecked(x as usize, y as usize))
-        } else {
-            Err(LasToStlError::GetByXyCheckedError {
-                x_res: self.x_res,
-                y_res: self.y_res,
-                x,
-                y,
-            })
-        }
     }
 }

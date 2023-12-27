@@ -361,7 +361,7 @@ impl Mask{
                     false
                 }
             }
-        }).collect::<Vec<bool>>().try_into().unwrap() // TODO: remove last unwrap()
+        }).collect::<Vec<bool>>().try_into().unwrap() // I don't think this can produce an error because the length must be 9.
     }
 
     /// gets the UTM coordinates of the specified point in pixel space
