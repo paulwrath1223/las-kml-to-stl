@@ -65,6 +65,29 @@ pub fn normal_or_default<F>(float: F, default: F) -> F
     }
 }
 
+/// 'normalizes' a float to be a real positive number. if `float` is a normal float it returns `float`, otherwise it returns `default`
+///
+/// See rust docs for float categories https://doc.rust-lang.org/nightly/core/num/enum.FpCategory.html
+pub fn normal_pos_or_default<F>(float: F, default: F) -> F
+    where F: num::Float
+{
+    match float.classify(){
+        FpCategory::Normal => {
+            match float.is_sign_positive(){
+                true => {
+                    float
+                }
+                false => {
+                    default
+                }
+            }
+        }
+        _ => {
+            default
+        }
+    }
+}
+
 /// Reconsider what you're doing if you are going this deep into this library. 
 /// This function takes an x and y coordinate and returns the index that point would appear in a 
 /// list according to the scheme ive been using. 

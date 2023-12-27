@@ -6,7 +6,7 @@ use crate::errors::LasToStlError;
 use crate::height_map::HeightMap;
 use crate::mask::Mask;
 
-use crate::utils::{normal_or_default, x_y_to_index};
+use crate::utils::{normal_or_default, normal_pos_or_default, x_y_to_index};
 
 impl HeightMap {
     pub fn save_as_stl(&self, path: &str, z_scaling: f64, base_thickness: f32) -> Result<(), LasToStlError>{
@@ -24,7 +24,7 @@ impl HeightMap {
         let top_vertex_list: Vec<Vertex> = self.data.iter().enumerate().map(|(index, height)| {
             let x = index % self.x_res;
             let y = index / self.x_res;
-            Vertex::new([x as f32, y as f32, (normal_or_default(height - self.bounds.min_z, 0f64) * z_scale_factor) as f32 + base_thickness])
+            Vertex::new([x as f32, y as f32, (normal_pos_or_default(height - self.bounds.min_z, 0f64) * z_scale_factor) as f32 + base_thickness])
         }).collect();
 
         let bottom_vertex_list: Vec<Vertex> = self.data.iter().enumerate().map(|(index, _height)| {
@@ -121,7 +121,7 @@ impl HeightMap {
         Ok(())
     }
 
-    pub fn save_as_stl_masked(&self, path: &str, mask: Mask, z_scaling: f64, base_thickness: f32) -> Result<(), LasToStlError>{
+    pub fn save_as_stl_masked(&self, path: &str, mask: &Mask, z_scaling: f64, base_thickness: f32) -> Result<(), LasToStlError>{
 
         debug!("save as stl masked");
 
@@ -137,7 +137,7 @@ impl HeightMap {
                 true => {
                     let x = index % self.x_res;
                     let y = index / self.x_res;
-                    Some(Vertex::new([x as f32, y as f32, (normal_or_default(height - self.bounds.min_z, 0f64) * z_scale_factor) as f32 + base_thickness]))
+                    Some(Vertex::new([x as f32, y as f32, (normal_pos_or_default(height - self.bounds.min_z, 0f64) * z_scale_factor) as f32 + base_thickness]))
                 }
             }
 
@@ -343,8 +343,8 @@ pub struct StlHelperMask {
     y_res: usize,
 }
 
-impl From<Mask> for StlHelperMask{
-    fn from(mask: Mask) -> StlHelperMask {
+impl From<&Mask> for StlHelperMask{
+    fn from(mask: &Mask) -> StlHelperMask {
 
         let new_mask_x_res: usize = mask.x_res-1;
         let new_mask_y_res: usize = mask.y_res-1;

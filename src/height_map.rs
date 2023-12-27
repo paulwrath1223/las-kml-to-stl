@@ -60,12 +60,26 @@ impl PointAggregate{
 /// but I don't believe in private fields. so just think about what you're doing if you want to use this.
 pub struct HeightMapIntermediate{
     pub data: Vec<PointAggregate>,
+
+    /// number of bins on the x axis
     pub x_res: usize,
+
+    /// number of bins on the y axis
     pub y_res: usize,
+
+    /// meters (or units if you aren't using UTM) per pixel on the x axis
     pub x_tick: f64,
+
+    /// meters (or units if you aren't using UTM) per pixel on the y axis
     pub y_tick: f64,
+
+    /// x value of pixel at (0, 0) in meters (or units if you aren't using UTM)
     pub x_offset: f64,
+
+    /// y value of pixel at (0, 0) in meters (or units if you aren't using UTM)
     pub y_offset: f64,
+
+    /// bounds in meters (or units if you aren't using UTM)
     pub bounds: UtmBoundingBox,
 }
 
@@ -236,6 +250,36 @@ impl HeightMap{
             for height in data_iter{
                 if *mask_iter.next().unwrap() {
                     height.add_assign(offset);
+                }
+            }
+
+            Ok(())
+        } else {
+            Err(LasToStlError::MaskBoundMismatchError{
+                other_x_res: self.x_res,
+                other_y_res: self.y_res,
+                mask_x_res: mask.x_res,
+                mask_y_res: mask.y_res,
+                other_bounds: self.bounds,
+                mask_bounds: mask.bounds,
+            })
+        }
+    }
+
+    /// assigns `value_to_set_where_mask_true` to all points with coordinates that are set to true in `mask`.
+    /// Mask must have the same resolution and bounds as self.
+    ///
+    /// You can guarantee this by constructing the mask with parameters from the heightmap you intend on applying it to.
+    ///
+    /// (e.g. `Mask::new_with_dims(hm.x_res, hm.y_res, hm.bounds)`)
+    pub fn set_by_mask(&mut self, mask: &Mask, value_to_set_where_mask_true: f64) -> Result<(), LasToStlError>{
+        if self.x_res == mask.x_res && self.y_res == mask.y_res && self.bounds == mask.bounds{
+            let data_iter = self.data.iter_mut();
+            let mut mask_iter = mask.data.iter();
+
+            for height in data_iter{
+                if *mask_iter.next().unwrap() {
+                    *height = value_to_set_where_mask_true;
                 }
             }
 

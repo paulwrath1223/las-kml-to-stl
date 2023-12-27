@@ -1,6 +1,7 @@
-use std::ops::{BitAndAssign, BitOrAssign, BitXorAssign};
+use std::ops::{BitAndAssign, BitOrAssign, BitXorAssign, Not, SubAssign};
 use geo::{BoundingRect, Contains, Coord, EuclideanLength, LineInterpolatePoint, LineString, Point, Polygon};
 use log::{error, info, trace, warn};
+use num::CheckedSub;
 use stl_io::Vertex;
 use crate::errors::LasToStlError;
 use crate::kml_utils::{linestring_to_utm_linestring, polygon_to_utm_polygon};
@@ -155,22 +156,15 @@ impl Mask{
         Ok(())
     }
 
-    /// only uses the exterior boundary because fuck you that's the data i happen to have,
-    /// if you want to add interior regions you could make a polygon for each interior and add them inverted
-    ///
-    /// EXTREMELY SLOW VALVE PLEASE FIX
-    pub fn add_filled_lat_lon_polygon(&mut self, lat_lon_region: &Polygon, invert: bool) -> Result<(), LasToStlError>{
+    /// sets all points inside the polygon to true
+    pub fn add_filled_lat_lon_polygon(&mut self, lat_lon_region: &Polygon) -> Result<(), LasToStlError>{
 
         let utm_region = polygon_to_utm_polygon(lat_lon_region);
 
-        self.add_filled_utm_polygon(&utm_region, invert)
+        self.add_filled_utm_polygon(&utm_region)
     }
 
-    /// only uses the exterior boundary because fuck you that's the data i happen to have,
-    /// if you want to add interior regions you could make a polygon for each interior and add them inverted
-    ///
-    /// EXTREMELY SLOW VALVE PLEASE FIX
-    pub fn add_filled_utm_polygon(&mut self, utm_region: &Polygon, invert: bool) -> Result<(), LasToStlError>{
+    pub fn add_filled_utm_polygon(&mut self, utm_region: &Polygon) -> Result<(), LasToStlError>{
         // get bounding rectangle to avoid checking points that arent even close
 
         let utm_bounding_rectangle = utm_region.bounding_rect().ok_or(LasToStlError::NoBoundingRectError)?;
@@ -202,7 +196,7 @@ impl Mask{
         for x in min_x..=max_x{
             for y in min_y..=max_y{
                 self.data[(y*self.x_res) + x] |=
-                    utm_region.contains(&Coord::from(&self.get_x_y_utm_unchecked(x, y))) ^ invert
+                    utm_region.contains(&Coord::from(&self.get_x_y_utm_unchecked(x, y)))
             }
             if x % 512 == 0{
                 info!("region_rasterizing: {:.2}%", 100f64 * x as f64 / self.x_res as f64)
@@ -270,7 +264,6 @@ impl Mask{
         Ok(())
     }
 
-
     /// Bounds and resolution must match
     pub fn checked_bitor_assign(&mut self, other_mask: &Mask) -> Result<(), LasToStlError> {
         if self.x_res == other_mask.x_res && self.y_res == other_mask.y_res && self.bounds == other_mask.bounds{
@@ -314,6 +307,24 @@ impl Mask{
         if self.x_res == other_mask.x_res && self.y_res == other_mask.y_res && self.bounds == other_mask.bounds{
             for (own_state, other_state) in self.data.iter_mut().zip(other_mask.data.iter()){
                 *own_state ^= *other_state;
+            }
+            Ok(())
+        } else {
+            Err(LasToStlError::MaskBoundMismatchError {
+                other_x_res: other_mask.x_res,
+                other_y_res:other_mask.y_res,
+                mask_x_res: self.x_res,
+                mask_y_res: self.y_res,
+                other_bounds: other_mask.bounds,
+                mask_bounds: self.bounds,
+            })
+        }
+    }
+
+    pub fn checked_sub_assign(&mut self, other_mask: &Mask) -> Result<(), LasToStlError> {
+        if self.x_res == other_mask.x_res && self.y_res == other_mask.y_res && self.bounds == other_mask.bounds{
+            for (own_state, other_state) in self.data.iter_mut().zip(other_mask.data.iter()){
+                *own_state = *own_state && !*other_state;
             }
             Ok(())
         } else {
@@ -447,6 +458,14 @@ impl BitXorAssign for Mask{
     fn bitxor_assign(&mut self, other_mask: Self) {
         for (own_state, other_state) in self.data.iter_mut().zip(other_mask.data.iter()){
             *own_state ^= *other_state;
+        }
+    }
+}
+
+impl SubAssign for Mask{
+    fn sub_assign(&mut self, rhs: Self) {
+        for (own_state, other_state) in self.data.iter_mut().zip(rhs.data.iter()){
+            *own_state = *own_state && !*other_state;
         }
     }
 }
