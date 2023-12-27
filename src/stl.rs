@@ -6,7 +6,7 @@ use crate::errors::LasToStlError;
 use crate::height_map::HeightMap;
 use crate::mask::Mask;
 
-use crate::utils::{normal_or_default, normal_pos_or_default, x_y_to_index};
+use crate::utils::{normal_pos_or_default, x_y_to_index};
 
 impl HeightMap {
     pub fn save_as_stl(&self, path: &str, z_scaling: f64, base_thickness: f32) -> Result<(), LasToStlError>{

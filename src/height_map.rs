@@ -1,17 +1,13 @@
 use std::fs::File;
 use std::io::{Read, Write};
-use std::ops::{AddAssign, BitOrAssign};
-use std::path::{Path, PathBuf};
-use std::time::SystemTime;
+use std::ops::{AddAssign};
+use std::path::{Path};
 use csv::WriterBuilder;
 use image::{ImageBuffer, Luma};
-use las::{Point, Read as LasRead, Reader};
-use log::{info, warn};
+use las::Point;
 use num::Zero;
 
-
-use crate::utils;
-use crate::utils::{get_point_deltas_within_radius, scale_float_to_uint_range, x_y_to_index};
+use crate::utils::{scale_float_to_uint_range, x_y_to_index};
 use serde::{Deserialize, Serialize};
 use crate::errors::LasToStlError;
 use crate::mask::Mask;

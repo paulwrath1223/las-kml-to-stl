@@ -1,11 +1,9 @@
-use std::ops::{BitAndAssign, BitOrAssign, BitXorAssign, Not, SubAssign};
+use std::ops::{BitAndAssign, BitOrAssign, BitXorAssign, SubAssign};
 use geo::{BoundingRect, Contains, Coord, EuclideanLength, LineInterpolatePoint, LineString, Point, Polygon};
 use log::{error, info, trace, warn};
-use num::CheckedSub;
-use stl_io::Vertex;
 use crate::errors::LasToStlError;
 use crate::kml_utils::{linestring_to_utm_linestring, polygon_to_utm_polygon};
-use crate::utils::{get_point_deltas_within_radius, normal_or_default, utm_point_to_pixel_space};
+use crate::utils::get_point_deltas_within_radius;
 use crate::utm_bounds::UtmBoundingBox;
 use crate::utm_point::UtmCoord;
 
@@ -207,14 +205,14 @@ impl Mask{
     }
 
     /// expects line_string to be in lat lon, not UTM
-    pub fn add_lat_lon_line_string_as_region(&mut self, line_string: &LineString, invert: bool) -> Result<(), LasToStlError>{
+    pub fn add_lat_lon_line_string_as_region(&mut self, line_string: &LineString) -> Result<(), LasToStlError>{
         if !line_string.is_closed(){
             return Err(LasToStlError::OpenLineStringError)
         }
         let utm_line_string: LineString = linestring_to_utm_linestring(&line_string);
         let utm_polygon = Polygon::new(utm_line_string, vec!());
 
-        self.add_filled_utm_polygon(&utm_polygon, invert)
+        self.add_filled_utm_polygon(&utm_polygon)
     }
 
     /// adds a GEO point with the specified radius.

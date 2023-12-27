@@ -1,10 +1,9 @@
-use std::time::SystemTime;
 use geo::{GeometryCollection, LineString, Polygon};
 use simple_logger::SimpleLogger;
 use las_kml_to_stl::height_map::HeightMap;
-use las_kml_to_stl::kml_utils::{get_regions, get_trails, get_waypoints, load_kml_file, load_kml_files};
+use las_kml_to_stl::kml_utils::{get_regions, get_trails, load_kml_file};
 use las_kml_to_stl::mask::Mask;
-use las_kml_to_stl::utils::get_paths;
+
 
 fn main() {
     // start a logger to print info from las_kml_to_stl
