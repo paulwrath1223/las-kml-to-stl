@@ -1,7 +1,6 @@
-use std::thread;
 use std::time::SystemTime;
 use las::{Read, Reader};
-use log::{debug, info, trace, warn};
+use log::{info, trace, warn};
 use crate::errors::LasToStlError;
 use crate::height_map::{HeightMap, HeightMapIntermediate};
 use crate::utils;

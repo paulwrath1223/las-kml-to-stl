@@ -1,5 +1,5 @@
 use geo::{Coord, Point};
-use utm::{to_utm_wgs84_no_zone, wsg84_utm_to_lat_lon};
+use utm::to_utm_wgs84_no_zone;
 
 
 

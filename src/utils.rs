@@ -122,7 +122,7 @@ pub fn get_point_deltas_within_radius(radius: u16) -> Vec<(i16, i16)>{
 
     let radius_squared_plus_one: i16 = signed_radius.pow(2) + 1;
 
-    let mut point_deltas: Vec<(i16, i16)> = Vec::with_capacity((diameter.pow(2)) as usize);
+    let mut point_deltas: Vec<(i16, i16)> = Vec::with_capacity(diameter.pow(2) as usize);
     for x in -signed_radius..=signed_radius{
         for y in -signed_radius..=signed_radius{
             if x.pow(2) + y.pow(2) < radius_squared_plus_one{

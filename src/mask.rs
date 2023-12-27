@@ -339,7 +339,7 @@ impl Mask{
 
     /// inverts the mask... Duh
     pub fn invert(&mut self){
-        self.data.iter_mut().for_each(|mut p| { *p = !*p })
+        self.data.iter_mut().for_each(|p| { *p = !*p })
     }
 
     /// neighbors are in the order of the following relative coordinates:

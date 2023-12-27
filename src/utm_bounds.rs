@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use geo::Coord;
 use log::info;
 use crate::errors::LasToStlError;
-use crate::utils::{f64_max, f64_min, get_paths};
+use crate::utils::{f64_max, f64_min};
 
 /// Bounds for 3d space in UTM form. This is used to convert between UTM objects and unit-less discrete grids
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]

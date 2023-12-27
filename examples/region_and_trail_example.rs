@@ -70,8 +70,13 @@ pub fn load_and_manipulate(){
     let trail_width_in_pixels: u16 = 16;
 
     for trail in all_trails_in_file{
+
         // for each trail, add it to the mask with sample points every ~ `trail_width_in_pixels / 4` pixels
-        trail_mask.add_lat_lon_trail_auto_sample(&trail, trail_width_in_pixels / 2 /* divide by two because this function is asking for a radius*/)
+        trail_mask.add_lat_lon_trail_auto_sample
+        (
+            &trail,
+            trail_width_in_pixels / 2 /* divide by two because this function is asking for a radius*/
+        ).unwrap();
     }
 
     // subtract 10 units from the height where trail_mask is true (lower the elevation of the trails by 10 units)
