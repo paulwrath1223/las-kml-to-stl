@@ -24,7 +24,7 @@ pub enum LasToStlError {
     #[error("Error in KML library:\n\t{0}")]
     KmlError(#[from] kml::Error),
     #[error("attempted to access the first element of a UTM trail, but it is not present.
-        This could either be because an empty GPX file was provided,
+        This could either be because an empty KML file was provided,
         or a different error that I have to deal with")]
     EmptyTrailError,
     #[error("Bounding coordinates must be in the correct format.
@@ -68,6 +68,11 @@ pub enum LasToStlError {
 
     #[error("Polygon does not have a bounding rectangle?? probably empty")]
     NoBoundingRectError,
+
+    #[error("attempted to access the first element of a UTM polygon, but it is not present.
+        This could either be because an empty KML file was provided,
+        or a different error that I have to deal with")]
+    EmptyPolygonError,
 
     #[error("This shouldn't ever happen, but somehow the face_mask calculated different results than the top and bottom face generation")]
     StlSideFaceGenerationError,

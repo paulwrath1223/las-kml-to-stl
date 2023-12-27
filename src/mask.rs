@@ -172,8 +172,7 @@ impl Mask{
         trace!("min_utm: {:?}, max_utm: {:?}", min_utm, max_utm);
         trace!("self.bounds: {}", self.bounds);
 
-        let first_coord = utm_region.exterior().coords().next().unwrap();
-
+        let first_coord = utm_region.exterior().coords().next().ok_or(LasToStlError::EmptyPolygonError)?;
         trace!("first 'utm' coord in exterior: {:?}", first_coord);
 
         let (min_x, min_y) = min_utm.get_x_y_coords(self.bounds.min_x, self.bounds.min_y, self.x_tick, self.y_tick);
@@ -362,7 +361,7 @@ impl Mask{
                     false
                 }
             }
-        }).collect::<Vec<bool>>().try_into().unwrap()
+        }).collect::<Vec<bool>>().try_into().unwrap() // TODO: remove last unwrap()
     }
 
     /// gets the UTM coordinates of the specified point in pixel space

@@ -181,8 +181,8 @@ impl HeightMap{
     pub fn save_to_csv<P: AsRef<Path>>(&self, path: P) -> Result<(), LasToStlError>{
         let mut output = WriterBuilder::new().has_headers(false).from_path(path)?;
         for row in self.data.chunks(self.x_res){
-            output.serialize(row).unwrap();
-            output.flush().unwrap();
+            output.serialize(row)?;
+            output.flush()?;
         };
         Ok(())
     }
@@ -241,10 +241,10 @@ impl HeightMap{
     pub fn offset_by_mask(&mut self, mask: &Mask, offset: f64) -> Result<(), LasToStlError>{
         if self.x_res == mask.x_res && self.y_res == mask.y_res && self.bounds == mask.bounds{
             let data_iter = self.data.iter_mut();
-            let mut mask_iter = mask.data.iter();
+            let mask_iter = mask.data.iter();
 
-            for height in data_iter{
-                if *mask_iter.next().unwrap() {
+            for (height, mask_state) in data_iter.zip(mask_iter){
+                if *mask_state {
                     height.add_assign(offset);
                 }
             }
@@ -271,10 +271,10 @@ impl HeightMap{
     pub fn set_by_mask(&mut self, mask: &Mask, value_to_set_where_mask_true: f64) -> Result<(), LasToStlError>{
         if self.x_res == mask.x_res && self.y_res == mask.y_res && self.bounds == mask.bounds{
             let data_iter = self.data.iter_mut();
-            let mut mask_iter = mask.data.iter();
+            let mask_iter = mask.data.iter();
 
-            for height in data_iter{
-                if *mask_iter.next().unwrap() {
+            for (height, mask_state) in data_iter.zip(mask_iter){
+                if *mask_state {
                     *height = value_to_set_where_mask_true;
                 }
             }
