@@ -1,7 +1,13 @@
 [package]
 name = "las-kml-to-stl"
 version = "0.1.0"
+description = "A short description of my package"
 edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/paulwrath1223/las-kml-to-stl"
+homepage = "https://github.com/paulwrath1223/las-kml-to-stl"
+readme = "README.md"
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
