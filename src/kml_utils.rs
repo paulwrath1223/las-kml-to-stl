@@ -104,19 +104,19 @@ pub fn get_waypoints(geometry_collection: GeometryCollection<f64>) -> Vec<Point>
     out_vec
 }
 
-pub fn linestring_to_utm_linestring(lat_lon_line_string: &LineString) -> LineString{
+pub fn linestring_to_utm_linestring(lat_lon_line_string: &LineString, utm_zone: u8) -> LineString{
     lat_lon_line_string.into_iter().map(|coord|{
-        Coord::from(&UtmCoord::from(coord))
+        Coord::from(&UtmCoord::from_gps_coord_zoned(coord, utm_zone))
     }).collect::<LineString>()
 }
 
-pub fn polygon_to_utm_polygon(polygon: &Polygon) -> Polygon{
+pub fn polygon_to_utm_polygon(polygon: &Polygon, utm_zone: u8) -> Polygon{
     Polygon::new(
 
-        linestring_to_utm_linestring(polygon.exterior()),
+        linestring_to_utm_linestring(polygon.exterior(), utm_zone),
 
         polygon.interiors().iter().map(|line_string|{
-            linestring_to_utm_linestring(line_string)
+            linestring_to_utm_linestring(line_string, utm_zone)
         }).collect::<Vec<LineString>>()
     )
 }

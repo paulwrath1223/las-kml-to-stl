@@ -129,15 +129,15 @@ impl Mask{
     }
 
     /// resamples and plots a LineString
-    pub fn add_lat_lon_trail_auto_sample(&mut self, lat_lon_trail: &LineString, dot_radius: u16) -> Result<(), LasToStlError>{
+    pub fn add_lat_lon_trail_auto_sample(&mut self, lat_lon_trail: &LineString, dot_radius: u16, utm_zone: u8) -> Result<(), LasToStlError>{
 
-        let utm_trail = linestring_to_utm_linestring(lat_lon_trail);
+        let utm_trail = linestring_to_utm_linestring(lat_lon_trail, utm_zone);
 
         self.add_utm_trail_auto_sample(&utm_trail, dot_radius)
     }
 
-    pub fn add_lat_lon_trail(&mut self, lat_lon_trail: &LineString, dot_radius: u16, target_num_points: usize) -> Result<(), LasToStlError>{
-        self.add_utm_trail(&linestring_to_utm_linestring(&lat_lon_trail), dot_radius, target_num_points)
+    pub fn add_lat_lon_trail(&mut self, lat_lon_trail: &LineString, dot_radius: u16, target_num_points: usize, utm_zone: u8) -> Result<(), LasToStlError>{
+        self.add_utm_trail(&linestring_to_utm_linestring(&lat_lon_trail, utm_zone), dot_radius, target_num_points)
     }
 
     pub fn add_utm_trail(&mut self, utm_trail: &LineString, dot_radius: u16, target_num_points: usize) -> Result<(), LasToStlError>{
@@ -163,9 +163,9 @@ impl Mask{
     }
 
     /// sets all points inside the polygon to true
-    pub fn add_filled_lat_lon_polygon(&mut self, lat_lon_region: &Polygon) -> Result<(), LasToStlError>{
+    pub fn add_filled_lat_lon_polygon(&mut self, lat_lon_region: &Polygon, utm_zone: u8) -> Result<(), LasToStlError>{
 
-        let utm_region = polygon_to_utm_polygon(lat_lon_region);
+        let utm_region = polygon_to_utm_polygon(lat_lon_region, utm_zone);
 
         self.add_filled_utm_polygon(&utm_region)
     }
@@ -212,11 +212,11 @@ impl Mask{
     }
 
     /// expects line_string to be in lat lon, not UTM
-    pub fn add_lat_lon_line_string_as_region(&mut self, line_string: &LineString) -> Result<(), LasToStlError>{
+    pub fn add_lat_lon_line_string_as_region(&mut self, line_string: &LineString, utm_zone: u8) -> Result<(), LasToStlError>{
         if !line_string.is_closed(){
             return Err(LasToStlError::OpenLineStringError)
         }
-        let utm_line_string: LineString = linestring_to_utm_linestring(&line_string);
+        let utm_line_string: LineString = linestring_to_utm_linestring(&line_string, utm_zone);
         let utm_polygon = Polygon::new(utm_line_string, vec!());
 
         self.add_filled_utm_polygon(&utm_polygon)
